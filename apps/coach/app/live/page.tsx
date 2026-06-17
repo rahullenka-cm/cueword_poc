@@ -5,7 +5,7 @@ import SetupNotice from "@cueword/core/components/SetupNotice";
 import LiveClass from "@cueword/core/components/LiveClass";
 import BodyClass from "@cueword/core/components/BodyClass";
 import TopBar from "@cueword/core/components/TopBar";
-import ClassPeople from "@cueword/core/components/ClassPeople";
+import ZoomDock from "@cueword/core/components/ZoomDock";
 import { useActiveSession } from "@cueword/core/components/useActiveSession";
 import { isSupabaseConfigured } from "@cueword/core/lib/supabase/client";
 import { logout, useCurrentUser } from "@cueword/core/lib/auth";
@@ -154,8 +154,7 @@ export default function CoachLivePage() {
             }}
             actions={logoutBtn}
           />
-          <div className="class-main">
-            <ClassPeople activePlanKey="warmup" />
+          <div className="class-main cw-coach">
             <main className="class-canvas">
               <div className="cw-waiting">
                 <div className="cw-waiting-emoji">🪄</div>
@@ -180,6 +179,7 @@ export default function CoachLivePage() {
                 </div>
               </div>
             </aside>
+            <ZoomDock />
           </div>
         </div>
       </>

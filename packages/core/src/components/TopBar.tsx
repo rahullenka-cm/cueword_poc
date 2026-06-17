@@ -32,8 +32,8 @@ export default function TopBar({
       <div className="ct-right">
         {actions}
         {zoomLink ? (
-          <a className="ct-icon" href={zoomLink} target="_blank" rel="noreferrer" title="Join Zoom">
-            🎥
+          <a className="ct-zoom" href={zoomLink} target="_blank" rel="noreferrer" title="Join Zoom">
+            <span className="ct-zoom-ico" aria-hidden="true">🎥</span> Join Zoom
           </a>
         ) : null}
         <button className="ct-end" onClick={onLeave}>

@@ -35,12 +35,57 @@
 .ctg-active, .ctg-active:hover { background: var(--gold); color: var(--ink); }
 .ct-icon { width: 34px; height: 34px; border-radius: 8px; background: rgba(255,255,255,0.08); color: #e8edf6; font-size: 15px; }
 .ct-icon:hover { background: rgba(255,255,255,0.16); }
-.ct-end { padding: 0 14px; height: 34px; border-radius: 8px; background: #e5484d; color: #fff; font-weight: 600; font-size: 13px; }
-.ct-zoom { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 999px; background: rgba(255,255,255,0.08); color: #e8edf6; font-size: 13px; font-weight: 600; text-decoration: none; }
+/* Join Zoom — a labelled pill, icon + text aligned on one baseline */
+.ct-zoom {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 34px; padding: 0 14px; border-radius: 8px;
+  background: rgba(255,255,255,0.08); color: #e8edf6;
+  font-size: 13px; font-weight: 600; line-height: 1; text-decoration: none;
+}
 .ct-zoom:hover { background: rgba(255,255,255,0.16); }
+.ct-zoom-ico { font-size: 15px; line-height: 1; display: inline-flex; }
+.ct-end { padding: 0 14px; height: 34px; border-radius: 8px; background: #e5484d; color: #fff; font-weight: 600; font-size: 13px; }
 
 /* ---- Main 3-column grid ---- */
 .class-main { flex: 1; display: grid; grid-template-columns: 230px 1fr 320px; min-height: 0; }
+
+/* Coach live console — two equal halves: content | playbook.
+   The class plan / left video column is dropped; the Zoom window becomes a
+   floating dock (see .cw-zoom-dock). */
+.class-main.cw-coach { grid-template-columns: minmax(0, 1fr) 580px; }
+
+/* Floating Zoom dock — horizontal 16:9 rectangle, pinned bottom-right,
+   sitting below the playbook. Lives within the right half so it doesn't
+   cover the content's options or text. */
+.cw-zoom-dock {
+  position: fixed; right: 16px; bottom: 16px; z-index: 40;
+  width: 548px; aspect-ratio: 16 / 10;
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 28px; border-radius: 14px;
+  border: 2px dashed rgba(255,255,255,0.22);
+  background: linear-gradient(160deg, #1c2840, #141d30);
+  box-shadow: 0 18px 44px rgba(8,14,28,0.45);
+  color: #e8edf6;
+}
+.cw-zoom-dock-icon { font-size: 46px; line-height: 1; opacity: 0.9; flex: none; }
+.cw-zoom-dock-title { font-size: 15px; font-weight: 700; }
+.cw-zoom-dock-sub { font-size: 12px; line-height: 1.5; opacity: 0.6; margin-top: 3px; }
+
+/* End the playbook (and its scrollbar) just above the floating dock,
+   rather than running the scroll track down behind it. */
+.class-main.cw-coach .class-playbook { padding-bottom: 16px; margin-bottom: 360px; }
+
+/* Thin frosted fade at the bottom edge of the playbook scroll area (just
+   above the dock) — the last line of text softly blurs as it reaches the
+   box, and sharpens as it scrolls up. Sits over the playbook's right half. */
+.class-main.cw-coach::after {
+  content: ""; position: fixed; right: 0; bottom: 360px;
+  width: 580px; height: 70px; z-index: 30; pointer-events: none;
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 85%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 85%);
+}
 
 /* ---- Left: participants + plan ---- */
 .class-people {
@@ -183,16 +228,17 @@
   display: flex; flex-direction: column;
 }
 .pb-head {
-  padding: 14px 16px; font-size: 13px; font-weight: 700;
+  padding: 16px 17px; font-family: var(--font-display); font-size: 17px; font-weight: 700;
+  letter-spacing: 0.005em;
   border-bottom: 1px solid rgba(255,255,255,0.08);
   display: flex; flex-direction: column; gap: 3px;
   position: sticky; top: 0; background: #121b30; z-index: 2;
 }
-.pb-only { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #e5a84d; }
+.pb-only { font-family: var(--font-sans); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #e5a84d; }
 .pb-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
-.pb-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px 14px; }
-.pb-card-h { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #9fb0cc; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.pb-card p { font-size: 13px; line-height: 1.55; color: #d7deea; }
+.pb-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 13px 15px; }
+.pb-card-h { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.07em; color: #b8c8e2; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pb-card p { font-size: 14px; line-height: 1.65; color: #e3eaf4; }
 .pb-tiny { font-size: 11px !important; opacity: 0.85; }
 .pb-key { border-color: rgba(111,168,106,0.5); background: rgba(111,168,106,0.12); }
 .pb-answer { font-size: 14px; font-weight: 600; color: #b6e7ae; line-height: 1.5; }
@@ -200,8 +246,8 @@
 .pb-rung-l1 { background: #8B94AE; } .pb-rung-l2 { background: var(--sky); } .pb-rung-l3 { background: var(--moss); } .pb-rung-l4 { background: var(--gold-deep); } .pb-rung-l5 { background: var(--coral); }
 .pb-words { display: flex; flex-wrap: wrap; gap: 6px; }
 .pb-word { font-size: 12px; font-weight: 600; background: rgba(244,201,93,0.16); color: #f4d98a; border: 1px solid rgba(244,201,93,0.3); border-radius: 999px; padding: 3px 10px; cursor: default; }
-.pb-flow { margin: 0; padding-left: 18px; font-size: 13px; color: #d7deea; line-height: 1.7; }
-.pb-prompts { margin: 0; padding-left: 16px; font-size: 13px; color: #d7deea; line-height: 1.7; }
+.pb-flow { margin: 0; padding-left: 18px; font-size: 14px; color: #e3eaf4; line-height: 1.74; }
+.pb-prompts { margin: 0; padding-left: 16px; font-size: 14px; color: #e3eaf4; line-height: 1.74; }
 .pb-r { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 12px; color: #d7deea; }
 .pb-r:last-child { margin-bottom: 0; }
 .pb-r > span { width: 84px; flex: none; }
@@ -211,7 +257,7 @@
 /* Nudges (lead the question playbook, before the answer) */
 .pb-nudge { border-color: rgba(244,201,93,0.4); background: rgba(244,201,93,0.08); }
 .pb-sub { font-size: 9px; font-weight: 600; text-transform: none; letter-spacing: 0; color: #94a6c4; }
-.pb-nudges { margin: 0; padding-left: 18px; font-size: 13px; color: #d7deea; line-height: 1.55; }
+.pb-nudges { margin: 0; padding-left: 18px; font-size: 14px; color: #e3eaf4; line-height: 1.66; }
 .pb-nudges li { margin-bottom: 7px; }
 .pb-nudges li:last-child { margin-bottom: 0; }
 
