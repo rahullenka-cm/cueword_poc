@@ -140,3 +140,224 @@ export async function getAttendanceRates(studentIds: string[]): Promise<Attendan
     attendanceRate: r.attendance_rate,
   }));
 }
+
+// ---- coach profile (coaches + profiles + v_tutor_stats) --------------------
+export interface CoachProfile {
+  fullName: string;
+  email: string | null;
+  timezone: string | null;
+  tzCity: string | null;
+  type: string | null;
+  capacity: number | null;
+  zoomLink: string | null;
+  sessionsHeld: number;
+  hoursTaught: number;
+  attendanceRate: number | null;
+  avgAccuracy: number | null;
+}
+export async function getCoachProfile(coachId: string): Promise<CoachProfile | null> {
+  const sb = getSupabaseBrowser();
+  const { data: c } = await sb
+    .from("coaches")
+    .select("type, capacity, zoom_link, timezone, profiles:profile_id(full_name, email, timezone, tz_city)")
+    .eq("profile_id", coachId)
+    .maybeSingle();
+  const { data: s } = await sb
+    .from("v_tutor_stats")
+    .select("sessions_held, hours_taught, attendance_rate, avg_accuracy")
+    .eq("coach_id", coachId)
+    .maybeSingle();
+  if (!c) return null;
+  const row = c as unknown as {
+    type: string | null; capacity: number | null; zoom_link: string | null; timezone: string | null;
+    profiles: { full_name: string; email: string | null; timezone: string | null; tz_city: string | null } | null;
+  };
+  const st = (s ?? {}) as { sessions_held?: number; hours_taught?: number; attendance_rate?: number | null; avg_accuracy?: number | null };
+  return {
+    fullName: row.profiles?.full_name ?? "—",
+    email: row.profiles?.email ?? null,
+    timezone: row.profiles?.timezone ?? row.timezone ?? null,
+    tzCity: row.profiles?.tz_city ?? null,
+    type: row.type,
+    capacity: row.capacity,
+    zoomLink: row.zoom_link,
+    sessionsHeld: Number(st.sessions_held ?? 0),
+    hoursTaught: Number(st.hours_taught ?? 0),
+    attendanceRate: st.attendance_rate ?? null,
+    avgAccuracy: st.avg_accuracy ?? null,
+  };
+}
+
+// ---- parent comms log ------------------------------------------------------
+export interface ParentComm {
+  id: string;
+  studentId: string;
+  studentName: string;
+  channel: string;
+  template: string | null;
+  note: string | null;
+  sentAt: string | null;
+  status: string | null;
+}
+export async function getParentComms(coachId: string): Promise<ParentComm[]> {
+  const sb = getSupabaseBrowser();
+  const { data, error } = await sb
+    .from("parent_comms")
+    .select("id, student_id, channel, template, note, sent_at, status, profiles:student_id(full_name)")
+    .eq("coach_id", coachId)
+    .order("sent_at", { ascending: false });
+  if (error) throw error;
+  type Row = {
+    id: string; student_id: string; channel: string; template: string | null; note: string | null;
+    sent_at: string | null; status: string | null; profiles: { full_name: string } | null;
+  };
+  return ((data ?? []) as unknown as Row[]).map((r) => ({
+    id: r.id,
+    studentId: r.student_id,
+    studentName: r.profiles?.full_name ?? "—",
+    channel: r.channel,
+    template: r.template,
+    note: r.note,
+    sentAt: r.sent_at,
+    status: r.status,
+  }));
+}
+
+// ---- marking queue (submissions awaiting coach action) ---------------------
+export interface MarkingItem {
+  id: string;
+  studentId: string;
+  studentName: string;
+  type: string; // spoken | written
+  skill: string | null;
+  status: string; // submitted | ai_scored
+  storyTitle: string | null;
+  createdAt: string;
+}
+export async function getMarkingQueue(studentIds: string[]): Promise<MarkingItem[]> {
+  if (studentIds.length === 0) return [];
+  const sb = getSupabaseBrowser();
+  const { data, error } = await sb
+    .from("submissions")
+    .select("id, student_id, type, skill, status, created_at, profiles:student_id(full_name), class_stories:story_id(title)")
+    .in("student_id", studentIds)
+    .in("status", ["submitted", "ai_scored"])
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  type Row = {
+    id: string; student_id: string; type: string; skill: string | null; status: string; created_at: string;
+    profiles: { full_name: string } | null; class_stories: { title: string } | null;
+  };
+  return ((data ?? []) as unknown as Row[]).map((r) => ({
+    id: r.id,
+    studentId: r.student_id,
+    studentName: r.profiles?.full_name ?? "—",
+    type: r.type,
+    skill: r.skill,
+    status: r.status,
+    storyTitle: r.class_stories?.title ?? null,
+    createdAt: r.created_at,
+  }));
+}
+
+// ---- sessions over a date window (schedule) --------------------------------
+export interface SessionRow {
+  id: string;
+  studentId: string;
+  studentName: string;
+  storyTitle: string | null;
+  scheduledAt: string;
+  status: string;
+}
+export async function getSessions(coachId: string, fromISO: string, toISO: string): Promise<SessionRow[]> {
+  const sb = getSupabaseBrowser();
+  const { data, error } = await sb
+    .from("class_sessions")
+    .select("id, student_id, scheduled_at, status, class_stories:class_story_id(title), profiles:student_id(full_name)")
+    .eq("coach_id", coachId)
+    .gte("scheduled_at", fromISO)
+    .lte("scheduled_at", toISO)
+    .order("scheduled_at", { ascending: true });
+  if (error) throw error;
+  type Row = {
+    id: string; student_id: string; scheduled_at: string; status: string;
+    class_stories: { title: string } | null; profiles: { full_name: string } | null;
+  };
+  return ((data ?? []) as unknown as Row[]).map((r) => ({
+    id: r.id,
+    studentId: r.student_id,
+    studentName: r.profiles?.full_name ?? "—",
+    storyTitle: r.class_stories?.title ?? null,
+    scheduledAt: r.scheduled_at,
+    status: r.status,
+  }));
+}
+
+// ---- student detail --------------------------------------------------------
+export interface SkillTracker {
+  skill: string;
+  rating: number | null;
+  status: string;
+}
+export interface StudentDetail {
+  studentId: string;
+  name: string;
+  grade: number | null;
+  status: string;
+  skills: SkillTracker[];
+  attendance: AttendanceRate | null;
+}
+export async function getStudentDetail(studentId: string): Promise<StudentDetail | null> {
+  const sb = getSupabaseBrowser();
+  const { data: stu } = await sb
+    .from("students")
+    .select("grade, status, profiles:profile_id(full_name)")
+    .eq("profile_id", studentId)
+    .maybeSingle();
+  if (!stu) return null;
+  const s = stu as unknown as { grade: number | null; status: string; profiles: { full_name: string } | null };
+  const { data: trackers } = await sb
+    .from("skill_trackers")
+    .select("skill, rating, status")
+    .eq("student_id", studentId);
+  const att = await getAttendanceRates([studentId]);
+  return {
+    studentId,
+    name: s.profiles?.full_name ?? "—",
+    grade: s.grade,
+    status: s.status,
+    skills: ((trackers ?? []) as SkillTracker[]).map((t) => ({ skill: t.skill, rating: t.rating, status: t.status })),
+    attendance: att[0] ?? null,
+  };
+}
+
+// ---- curriculum (read-only hierarchy: stage → term → level → stories) ------
+export interface CurriculumLevel {
+  levelId: string;
+  stageNumber: number;
+  termNumber: number;
+  numberInStage: number;
+  lo: string | null;
+  storyCount: number;
+}
+export async function getCurriculumLevels(): Promise<CurriculumLevel[]> {
+  const sb = getSupabaseBrowser();
+  const { data, error } = await sb
+    .from("levels")
+    .select("id, number_in_stage, lo, terms:term_id(number, stages:stage_id(number)), class_stories(count)")
+    .order("number_in_stage", { ascending: true });
+  if (error) throw error;
+  type Row = {
+    id: string; number_in_stage: number; lo: string | null;
+    terms: { number: number; stages: { number: number } | null } | null;
+    class_stories: { count: number }[] | null;
+  };
+  return ((data ?? []) as unknown as Row[]).map((r) => ({
+    levelId: r.id,
+    stageNumber: r.terms?.stages?.number ?? 0,
+    termNumber: r.terms?.number ?? 0,
+    numberInStage: r.number_in_stage,
+    lo: r.lo,
+    storyCount: r.class_stories?.[0]?.count ?? 0,
+  }));
+}
