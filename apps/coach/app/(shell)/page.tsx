@@ -9,6 +9,8 @@ import { Icon, Avatar, SkillChip, AITag, StatusTag } from "@/components/Icon";
 import { CW } from "@/data/coachData";
 import { useLiveSession } from "@/components/Shell";
 import { getZoomLink } from "@cueword/core/lib/config";
+import { useSupabaseUser } from "@cueword/core/lib/auth-supabase";
+import { getCoachLoad, type CoachLoad } from "@/data/live";
 
 export default function Dashboard() {
   const C = CW;
@@ -17,6 +19,17 @@ export default function Dashboard() {
   // via context (avoids a duplicate Realtime channel on the same session topic).
   const { liveActive } = useLiveSession();
   const zoomLink = getZoomLink();
+
+  // Real coach KPIs (v_coach_load), scoped to the signed-in coach by RLS.
+  // Falls back to mock numbers until the coach has live data.
+  const { user } = useSupabaseUser();
+  const [load, setLoad] = useState<CoachLoad | null>(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    getCoachLoad(user.id)
+      .then(setLoad)
+      .catch(() => setLoad(null));
+  }, [user?.id]);
 
   const dataLive = C.sessions.find((s) => s.status === "live");
   // Real session drives the live state (not the mockup's hardcoded liveActive=true).
@@ -66,9 +79,9 @@ export default function Dashboard() {
   const openTaskCount = tasks.filter((t) => t.tag === "overdue" || t.tag === "tomark" || t.tag === "toassign").length;
 
   const kpis = [
-    { num: C.students.length, lbl: "Total students", icon: "users2", tint: "var(--sk-read)", bg: "var(--sk-read-soft)" },
-    { num: C.sessions.length, lbl: "Sessions today", icon: "schedule", tint: "var(--sk-vocab)", bg: "var(--sk-vocab-soft)" },
-    { num: C.submissions.length, lbl: "Items to mark", icon: "marking", hot: true },
+    { num: load?.active_students ?? C.students.length, lbl: "Total students", icon: "users2", tint: "var(--sk-read)", bg: "var(--sk-read-soft)" },
+    { num: load?.sessions_today ?? C.sessions.length, lbl: "Sessions today", icon: "schedule", tint: "var(--sk-vocab)", bg: "var(--sk-vocab-soft)" },
+    { num: load?.items_to_mark ?? C.submissions.length, lbl: "Items to mark", icon: "marking", hot: true },
     { num: "96%", lbl: "Attendance this week", icon: "trend", tint: "var(--brand)", bg: "var(--brand-soft)" },
   ];
 
