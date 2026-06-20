@@ -5,7 +5,6 @@ import TopBar from "./TopBar";
 import ClassPeople from "./ClassPeople";
 import LessonCanvas from "./LessonCanvas";
 import CoachPlaybook from "./CoachPlaybook";
-import ZoomDock from "./ZoomDock";
 import { buildSteps, stepPhase } from "../lib/lesson";
 import type { AnswerPayload, Driver, Question, Step, Story, StoryKey } from "../lib/types";
 
@@ -67,37 +66,37 @@ export default function LiveClass({
           actions={headerActions}
         />
         <div className={`class-main ${showPlaybook ? "cw-coach" : "cw-2col"}`}>
-          {!showPlaybook && <ClassPeople activePlanKey={planKeyFor(step)} />}
-          <LessonCanvas
-            story={story}
-            storyKey={storyKey}
-            stepIndex={idx}
-            isDriver={isDriver}
-            driver={driver}
-            onNext={onNext}
-            onPrev={onPrev}
-            onAnswer={onAnswer}
-            kidName={kidName}
-            coachName={coachName}
-            reveal={reveal}
-          />
-          {showPlaybook && (
+          {showPlaybook ? (
+            <aside className="class-playbook">
+              <div className="pb-head">
+                🎯 Coach playbook{" "}
+                <span className="pb-only">coach only — the student can&apos;t see this</span>
+              </div>
+              <CoachPlaybook
+                key={idx}
+                story={story}
+                storyKey={storyKey}
+                step={step}
+                kidName={kidName}
+                driver={driver}
+              />
+            </aside>
+          ) : (
             <>
-              <aside className="class-playbook">
-                <div className="pb-head">
-                  🎯 Coach playbook{" "}
-                  <span className="pb-only">coach only — the student can&apos;t see this</span>
-                </div>
-                <CoachPlaybook
-                  key={idx}
-                  story={story}
-                  storyKey={storyKey}
-                  step={step}
-                  kidName={kidName}
-                  driver={driver}
-                />
-              </aside>
-              <ZoomDock />
+              <ClassPeople activePlanKey={planKeyFor(step)} />
+              <LessonCanvas
+                story={story}
+                storyKey={storyKey}
+                stepIndex={idx}
+                isDriver={isDriver}
+                driver={driver}
+                onNext={onNext}
+                onPrev={onPrev}
+                onAnswer={onAnswer}
+                kidName={kidName}
+                coachName={coachName}
+                reveal={reveal}
+              />
             </>
           )}
         </div>
