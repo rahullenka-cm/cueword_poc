@@ -1,18 +1,37 @@
 "use client";
-/* Screen 2 — Roster (ported from app/screen_roster.jsx → Roster). */
+/* Screen 2 — Roster. Wired to the real backend: the coach's active roster
+   (enrollments → students → profiles), RLS-scoped to the signed-in coach. */
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon, Avatar } from "@/components/Icon";
-import { CW } from "@/data/coachData";
+import { useSupabaseUser } from "@cueword/core/lib/auth-supabase";
+import { getRoster, type RosterEntry } from "@/data/live";
+
+const PALETTE = ["#2D7FF9", "#EC5A8D", "#11A974", "#EE9612", "#7C5CFC", "#06AFC4"];
+const colorFor = (id: string) =>
+  PALETTE[[...id].reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTE.length];
 
 export default function RosterPage() {
-  const C = CW;
   const router = useRouter();
+  const { user, ready } = useSupabaseUser();
+  const [roster, setRoster] = useState<RosterEntry[] | null>(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    getRoster(user.id)
+      .then(setRoster)
+      .catch(() => setRoster([]));
+  }, [user?.id]);
+
+  const loading = !ready || roster === null;
+  const rows = roster ?? [];
+
   return (
     <div className="content-inner fade-up">
       <div className="row" style={{ marginBottom: "var(--pad)" }}>
         <div>
           <h1 className="page-title">Roster</h1>
-          <p className="page-sub">{C.students.length} active students</p>
+          <p className="page-sub">{loading ? "Loading…" : `${rows.length} active students`}</p>
         </div>
         <span className="grow" />
         <button className="btn">
@@ -29,20 +48,32 @@ export default function RosterPage() {
             <tr>
               <th>Student</th>
               <th>Grade</th>
-              <th>Next session</th>
-              <th>Term</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {C.students.map((s) => {
-              const ts = C.sessions.find((x) => x.studentId === s.id);
-              const status = ts ? (ts.status === "done" ? "done" : ts.status === "live" ? "live" : "upcoming") : "upcoming";
-              return (
-                <tr key={s.id} className="clickable" onClick={() => router.push(`/roster/${s.id}`)}>
+            {loading ? (
+              <tr>
+                <td colSpan={3} className="muted" style={{ textAlign: "center", padding: 28 }}>
+                  Loading roster…
+                </td>
+              </tr>
+            ) : rows.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="muted" style={{ textAlign: "center", padding: 28 }}>
+                  No students assigned yet.
+                </td>
+              </tr>
+            ) : (
+              rows.map((s) => (
+                <tr
+                  key={s.studentId}
+                  className="clickable"
+                  onClick={() => router.push(`/roster/${s.studentId}`)}
+                >
                   <td>
                     <div className="cell-student">
-                      <Avatar name={s.name} color={s.color} size={34} />
+                      <Avatar name={s.name} color={colorFor(s.studentId)} size={34} />
                       <div>
                         <b>{s.name}</b>
                       </div>
@@ -50,31 +81,15 @@ export default function RosterPage() {
                   </td>
                   <td>
                     <span className="chip" style={{ background: "var(--surface-3)", color: "var(--ink-2)" }}>
-                      G{s.grade}
+                      {s.grade != null ? `G${s.grade}` : "—"}
                     </span>
                   </td>
-                  <td className="muted tnum" style={{ fontSize: 12.5 }}>
-                    {s.next}
-                  </td>
                   <td>
-                    <span className="tnum">{s.term}</span>
-                  </td>
-                  <td>
-                    {status === "live" ? (
-                      <span className="status-tag" style={{ background: "var(--live-soft)", color: "var(--live)" }}>
-                        <span className="live-dot" style={{ background: "var(--live)" }} /> Live now
-                      </span>
-                    ) : status === "done" ? (
-                      <span className="status-tag st-mastered">
-                        <Icon n="check" size={12} /> Done
-                      </span>
-                    ) : (
-                      <span className="status-tag st-progress">Upcoming</span>
-                    )}
+                    <span className="status-tag st-progress">{s.status}</span>
                   </td>
                 </tr>
-              );
-            })}
+              ))
+            )}
           </tbody>
         </table>
       </div>
