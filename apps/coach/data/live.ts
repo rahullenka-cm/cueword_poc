@@ -64,7 +64,7 @@ export async function getRoster(coachId: string): Promise<RosterEntry[]> {
   const sb = getSupabaseBrowser();
   const { data, error } = await sb
     .from("enrollments")
-    .select("student_id, status, students:student_id(grade, status, profiles:profile_id(full_name))")
+    .select("student_id, status, students!enrollments_student_id_fkey(grade, status, profiles!students_profile_id_fkey(full_name))")
     .eq("coach_id", coachId)
     .eq("status", "active");
   if (error) throw error;
@@ -87,7 +87,7 @@ export async function getTodaySessions(coachId: string): Promise<TodaySession[]>
   const { data, error } = await sb
     .from("class_sessions")
     .select(
-      "id, student_id, scheduled_at, status, zoom_link, class_stories:class_story_id(title), profiles:student_id(full_name)",
+      "id, student_id, scheduled_at, status, zoom_link, class_stories:class_story_id(title), students!class_sessions_student_id_fkey(profiles!students_profile_id_fkey(full_name))",
     )
     .eq("coach_id", coachId)
     .gte("scheduled_at", `${today}T00:00:00Z`)
@@ -101,12 +101,12 @@ export async function getTodaySessions(coachId: string): Promise<TodaySession[]>
     status: string;
     zoom_link: string | null;
     class_stories: { title: string } | null;
-    profiles: { full_name: string } | null;
+    students: { profiles: { full_name: string } | null } | null;
   };
   return ((data ?? []) as unknown as Row[]).map((r) => ({
     id: r.id,
     studentId: r.student_id,
-    studentName: r.profiles?.full_name ?? "—",
+    studentName: r.students?.profiles?.full_name ?? "—",
     storyTitle: r.class_stories?.title ?? null,
     scheduledAt: r.scheduled_at,
     status: r.status,
@@ -159,7 +159,7 @@ export async function getCoachProfile(coachId: string): Promise<CoachProfile | n
   const sb = getSupabaseBrowser();
   const { data: c } = await sb
     .from("coaches")
-    .select("type, capacity, zoom_link, timezone, profiles:profile_id(full_name, email, timezone, tz_city)")
+    .select("type, capacity, zoom_link, timezone, profiles!coaches_profile_id_fkey(full_name, email, timezone, tz_city)")
     .eq("profile_id", coachId)
     .maybeSingle();
   const { data: s } = await sb
@@ -197,29 +197,27 @@ export interface ParentComm {
   template: string | null;
   note: string | null;
   sentAt: string | null;
-  status: string | null;
 }
 export async function getParentComms(coachId: string): Promise<ParentComm[]> {
   const sb = getSupabaseBrowser();
   const { data, error } = await sb
     .from("parent_comms")
-    .select("id, student_id, channel, template, note, sent_at, status, profiles:student_id(full_name)")
+    .select("id, student_id, channel, template, note, sent_at, students!parent_comms_student_id_fkey(profiles!students_profile_id_fkey(full_name))")
     .eq("coach_id", coachId)
     .order("sent_at", { ascending: false });
   if (error) throw error;
   type Row = {
     id: string; student_id: string; channel: string; template: string | null; note: string | null;
-    sent_at: string | null; status: string | null; profiles: { full_name: string } | null;
+    sent_at: string | null; students: { profiles: { full_name: string } | null } | null;
   };
   return ((data ?? []) as unknown as Row[]).map((r) => ({
     id: r.id,
     studentId: r.student_id,
-    studentName: r.profiles?.full_name ?? "—",
+    studentName: r.students?.profiles?.full_name ?? "—",
     channel: r.channel,
     template: r.template,
     note: r.note,
     sentAt: r.sent_at,
-    status: r.status,
   }));
 }
 
@@ -239,23 +237,24 @@ export async function getMarkingQueue(studentIds: string[]): Promise<MarkingItem
   const sb = getSupabaseBrowser();
   const { data, error } = await sb
     .from("submissions")
-    .select("id, student_id, type, skill, status, created_at, profiles:student_id(full_name), class_stories:story_id(title)")
+    .select("id, student_id, type, skill, status, created_at, students!submissions_student_id_fkey(profiles!students_profile_id_fkey(full_name)), story_sections:section_id(class_stories:class_story_id(title))")
     .in("student_id", studentIds)
     .in("status", ["submitted", "ai_scored"])
     .order("created_at", { ascending: true });
   if (error) throw error;
   type Row = {
     id: string; student_id: string; type: string; skill: string | null; status: string; created_at: string;
-    profiles: { full_name: string } | null; class_stories: { title: string } | null;
+    students: { profiles: { full_name: string } | null } | null;
+    story_sections: { class_stories: { title: string } | null } | null;
   };
   return ((data ?? []) as unknown as Row[]).map((r) => ({
     id: r.id,
     studentId: r.student_id,
-    studentName: r.profiles?.full_name ?? "—",
+    studentName: r.students?.profiles?.full_name ?? "—",
     type: r.type,
     skill: r.skill,
     status: r.status,
-    storyTitle: r.class_stories?.title ?? null,
+    storyTitle: r.story_sections?.class_stories?.title ?? null,
     createdAt: r.created_at,
   }));
 }
@@ -273,7 +272,7 @@ export async function getSessions(coachId: string, fromISO: string, toISO: strin
   const sb = getSupabaseBrowser();
   const { data, error } = await sb
     .from("class_sessions")
-    .select("id, student_id, scheduled_at, status, class_stories:class_story_id(title), profiles:student_id(full_name)")
+    .select("id, student_id, scheduled_at, status, class_stories:class_story_id(title), students!class_sessions_student_id_fkey(profiles!students_profile_id_fkey(full_name))")
     .eq("coach_id", coachId)
     .gte("scheduled_at", fromISO)
     .lte("scheduled_at", toISO)
@@ -281,12 +280,12 @@ export async function getSessions(coachId: string, fromISO: string, toISO: strin
   if (error) throw error;
   type Row = {
     id: string; student_id: string; scheduled_at: string; status: string;
-    class_stories: { title: string } | null; profiles: { full_name: string } | null;
+    class_stories: { title: string } | null; students: { profiles: { full_name: string } | null } | null;
   };
   return ((data ?? []) as unknown as Row[]).map((r) => ({
     id: r.id,
     studentId: r.student_id,
-    studentName: r.profiles?.full_name ?? "—",
+    studentName: r.students?.profiles?.full_name ?? "—",
     storyTitle: r.class_stories?.title ?? null,
     scheduledAt: r.scheduled_at,
     status: r.status,
@@ -311,7 +310,7 @@ export async function getStudentDetail(studentId: string): Promise<StudentDetail
   const sb = getSupabaseBrowser();
   const { data: stu } = await sb
     .from("students")
-    .select("grade, status, profiles:profile_id(full_name)")
+    .select("grade, status, profiles!students_profile_id_fkey(full_name)")
     .eq("profile_id", studentId)
     .maybeSingle();
   if (!stu) return null;
@@ -360,4 +359,64 @@ export async function getCurriculumLevels(): Promise<CurriculumLevel[]> {
     lo: r.lo,
     storyCount: r.class_stories?.[0]?.count ?? 0,
   }));
+}
+
+// ---- single submission (marking detail) ------------------------------------
+export interface MarkingDetail {
+  id: string;
+  studentId: string;
+  studentName: string;
+  type: string; // spoken | written
+  skill: string | null;
+  status: string;
+  storyTitle: string | null;
+  phase: string | null;
+  createdAt: string;
+  body: string | null; // written text
+  contentUrl: string | null; // spoken audio (Storage)
+  score: number | null;
+  tutorFeedback: string | null;
+  // AI scoring is produced by the eval function (deployed when we move to the
+  // company repo); until then this is null and the UI shows a pending state.
+  ai: { status: string; result: unknown | null; modelUsed: string | null } | null;
+}
+export async function getMarkingItem(id: string): Promise<MarkingDetail | null> {
+  const sb = getSupabaseBrowser();
+  const { data, error } = await sb
+    .from("submissions")
+    .select(
+      "id, student_id, type, skill, status, body, content_url, score, tutor_feedback, created_at, students!submissions_student_id_fkey(profiles!students_profile_id_fkey(full_name)), story_sections:section_id(phase, class_stories:class_story_id(title)), ai_evaluations(status, result, model_used, completed_at)",
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  type Row = {
+    id: string; student_id: string; type: string; skill: string | null; status: string;
+    body: string | null; content_url: string | null; score: number | null; tutor_feedback: string | null;
+    created_at: string;
+    students: { profiles: { full_name: string } | null } | null;
+    story_sections: { phase: string | null; class_stories: { title: string } | null } | null;
+    ai_evaluations: { status: string; result: unknown | null; model_used: string | null; completed_at: string | null }[] | null;
+  };
+  const r = data as unknown as Row;
+  // ai_evaluations is one-to-many; take the most recently completed.
+  const evals = (r.ai_evaluations ?? []).slice().sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""));
+  const e = evals[0] ?? null;
+  return {
+    id: r.id,
+    studentId: r.student_id,
+    studentName: r.students?.profiles?.full_name ?? "—",
+    type: r.type,
+    skill: r.skill,
+    status: r.status,
+    storyTitle: r.story_sections?.class_stories?.title ?? null,
+    phase: r.story_sections?.phase ?? null,
+    createdAt: r.created_at,
+    body: r.body,
+    contentUrl: r.content_url,
+    score: r.score,
+    tutorFeedback: r.tutor_feedback,
+    ai: e ? { status: e.status, result: e.result, modelUsed: e.model_used } : null,
+  };
 }
