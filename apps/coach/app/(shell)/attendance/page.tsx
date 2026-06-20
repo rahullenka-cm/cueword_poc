@@ -1,30 +1,52 @@
 "use client";
-/* Screen — Attendance (ported from app/screen_attendance.jsx). */
-import { useState } from "react";
+/* Screen — Attendance. Wired to the real backend: per-student rates from
+   v_attendance_rate over the coach's active roster (RLS-scoped). The per-session
+   history strip is omitted (the rate view doesn't carry the raw log). */
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon, Avatar } from "@/components/Icon";
-import { CW, type AttendanceStatus } from "@/data/coachData";
+import { useSupabaseUser } from "@cueword/core/lib/auth-supabase";
+import { getRoster, getAttendanceRates, type RosterEntry, type AttendanceRate } from "@/data/live";
+
+const PALETTE = ["#2D7FF9", "#EC5A8D", "#11A974", "#EE9612", "#7C5CFC", "#06AFC4"];
+const colorFor = (id: string) =>
+  PALETTE[[...id].reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTE.length];
+
+interface Row extends RosterEntry {
+  att: AttendanceRate | null;
+}
 
 export default function AttendancePage() {
-  const C = CW;
   const router = useRouter();
-  const [period, setPeriod] = useState("term");
+  const { user, ready } = useSupabaseUser();
+  const [rows, setRows] = useState<Row[] | null>(null);
 
-  const all = C.students.map((s) => ({ s, a: C.attendance[s.id] }));
-  const totals = all.reduce(
-    (acc, { a }) => {
-      acc.present += a.present;
-      acc.late += a.late;
-      acc.absent += a.absent;
-      acc.total += a.total;
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      const roster = await getRoster(user.id);
+      const rates = await getAttendanceRates(roster.map((r) => r.studentId));
+      const byId = new Map(rates.map((a) => [a.studentId, a]));
+      setRows(roster.map((r) => ({ ...r, att: byId.get(r.studentId) ?? null })));
+    })().catch(() => setRows([]));
+  }, [user?.id]);
+
+  const loading = !ready || rows === null;
+  const data = rows ?? [];
+
+  const totals = data.reduce(
+    (acc, { att }) => {
+      acc.present += att?.presentCount ?? 0;
+      acc.late += att?.lateCount ?? 0;
+      acc.absent += att?.absentCount ?? 0;
+      acc.total += att?.totalMarked ?? 0;
       return acc;
     },
     { present: 0, late: 0, absent: 0, total: 0 },
   );
-  const overall = Math.round(((totals.present + totals.late) / totals.total) * 100);
-
-  const STC: Record<AttendanceStatus, string> = { present: "var(--brand)", late: "var(--warn)", absent: "var(--live)", scheduled: "var(--line)" };
-  const STL: Record<AttendanceStatus, string> = { present: "Present", late: "Late", absent: "Absent", scheduled: "Upcoming" };
+  const overall = totals.total > 0 ? Math.round(((totals.present + totals.late) / totals.total) * 100) : 0;
+  const pct = (a: AttendanceRate | null) =>
+    a && a.attendanceRate != null ? Math.round(a.attendanceRate * 100) : null;
 
   const kpis = [
     { num: overall + "%", lbl: "Attendance · this term", tint: "var(--brand)", bg: "var(--brand-soft)", icon: "userCheck" },
@@ -38,23 +60,10 @@ export default function AttendancePage() {
       <div className="row" style={{ marginBottom: 14, flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 className="page-title">Attendance</h1>
-          <p className="page-sub">Every student&apos;s session attendance across Term 1</p>
-        </div>
-        <span className="grow" />
-        <div className="role-toggle">
-          {[
-            ["week", "This week"],
-            ["month", "This month"],
-            ["term", "Term 1"],
-          ].map(([k, l]) => (
-            <button key={k} className={period === k ? "on" : ""} onClick={() => setPeriod(k)}>
-              {l}
-            </button>
-          ))}
+          <p className="page-sub">{loading ? "Loading…" : "Every student's session attendance"}</p>
         </div>
       </div>
 
-      {/* KPIs */}
       <div className="kgrid" style={{ gridTemplateColumns: "repeat(4,1fr)", marginBottom: "var(--gap)" }}>
         {kpis.map((k, i) => (
           <div key={i} className="card kpi">
@@ -69,73 +78,70 @@ export default function AttendancePage() {
         ))}
       </div>
 
-      {/* per-student record */}
       <div className="card">
         <div className="card-head">
           <h3>Student records</h3>
-          <span className="spacer" />
-          <div className="row" style={{ gap: 14 }}>
-            {(["present", "late", "absent"] as const).map((k) => (
-              <span key={k} className="row" style={{ gap: 5, fontSize: 11.5, color: "var(--ink-3)", fontWeight: 600 }}>
-                <span style={{ width: 9, height: 9, borderRadius: 3, background: STC[k] }} /> {STL[k]}
-              </span>
-            ))}
-          </div>
         </div>
         <table className="tbl">
           <thead>
             <tr>
               <th>Student</th>
               <th>Grade</th>
-              <th style={{ width: "34%" }}>Rate</th>
-              <th>Recent sessions</th>
+              <th style={{ width: "40%" }}>Rate</th>
               <th style={{ textAlign: "right" }}>P / L / A</th>
             </tr>
           </thead>
           <tbody>
-            {all.map(({ s, a }) => (
-              <tr key={s.id} className="clickable" onClick={() => router.push(`/roster/${s.id}`)}>
-                <td>
-                  <div className="cell-student">
-                    <Avatar name={s.name} color={s.color} size={32} />
-                    <b>{s.name}</b>
-                  </div>
-                </td>
-                <td>
-                  <span className="chip" style={{ background: "var(--surface-3)", color: "var(--ink-2)" }}>
-                    G{s.grade}
-                  </span>
-                </td>
-                <td>
-                  <div className="row" style={{ gap: 9 }}>
-                    <b className="tnum" style={{ width: 36, color: a.rate >= 95 ? "var(--brand-ink)" : a.rate >= 85 ? "var(--warn)" : "var(--live)" }}>
-                      {a.rate}%
-                    </b>
-                    <span className="grow" style={{ maxWidth: 150 }}>
-                      <div className="bar">
-                        <i style={{ width: a.rate + "%", background: a.rate >= 95 ? "var(--brand)" : a.rate >= 85 ? "var(--warn)" : "var(--live)" }} />
-                      </div>
-                    </span>
-                  </div>
-                </td>
-                <td>
-                  <div className="row" style={{ gap: 3 }}>
-                    {a.log
-                      .slice(0, 12)
-                      .reverse()
-                      .map((l, i) => (
-                        <span key={i} title={`${l.date} · ${STL[l.status]}`} style={{ width: 14, height: 14, borderRadius: 4, background: STC[l.status], flex: "none" }} />
-                      ))}
-                  </div>
-                </td>
-                <td style={{ textAlign: "right" }}>
-                  <span className="tnum" style={{ fontSize: 12.5 }}>
-                    <b style={{ color: "var(--brand-ink)" }}>{a.present}</b> <span className="muted">/</span> <b style={{ color: "var(--warn)" }}>{a.late}</b>{" "}
-                    <span className="muted">/</span> <b style={{ color: "var(--live)" }}>{a.absent}</b>
-                  </span>
+            {loading ? (
+              <tr>
+                <td colSpan={4} className="muted" style={{ textAlign: "center", padding: 28 }}>
+                  Loading attendance…
                 </td>
               </tr>
-            ))}
+            ) : data.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="muted" style={{ textAlign: "center", padding: 28 }}>
+                  No students yet.
+                </td>
+              </tr>
+            ) : (
+              data.map(({ studentId, name, grade, att }) => {
+                const rate = pct(att);
+                const color = rate == null ? "var(--ink-4)" : rate >= 95 ? "var(--brand)" : rate >= 85 ? "var(--warn)" : "var(--live)";
+                return (
+                  <tr key={studentId} className="clickable" onClick={() => router.push(`/roster/${studentId}`)}>
+                    <td>
+                      <div className="cell-student">
+                        <Avatar name={name} color={colorFor(studentId)} size={32} />
+                        <b>{name}</b>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="chip" style={{ background: "var(--surface-3)", color: "var(--ink-2)" }}>
+                        {grade != null ? `G${grade}` : "—"}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="row" style={{ gap: 9 }}>
+                        <b className="tnum" style={{ width: 40, color }}>{rate == null ? "—" : `${rate}%`}</b>
+                        <span className="grow" style={{ maxWidth: 180 }}>
+                          <div className="bar">
+                            <i style={{ width: (rate ?? 0) + "%", background: color }} />
+                          </div>
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <span className="tnum" style={{ fontSize: 12.5 }}>
+                        <b style={{ color: "var(--brand-ink)" }}>{att?.presentCount ?? 0}</b> <span className="muted">/</span>{" "}
+                        <b style={{ color: "var(--warn)" }}>{att?.lateCount ?? 0}</b> <span className="muted">/</span>{" "}
+                        <b style={{ color: "var(--live)" }}>{att?.absentCount ?? 0}</b>
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
