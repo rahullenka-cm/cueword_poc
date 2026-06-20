@@ -3,30 +3,29 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import SetupNotice from "@cueword/core/components/SetupNotice";
 import { isSupabaseConfigured } from "@cueword/core/lib/supabase/client";
-import { getCurrentUser, validateLogin } from "@cueword/core/lib/auth";
-import { POC } from "@cueword/core/lib/config";
+import { signIn, useSupabaseUser } from "@cueword/core/lib/auth-supabase";
 
 export default function CoachLoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const { user, ready } = useSupabaseUser();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Already logged in → go home.
+  // Already signed in as a coach → go home.
   useEffect(() => {
-    const u = getCurrentUser();
-    if (u && u.role === "coach") router.replace("/");
-  }, [router]);
+    if (ready && user && user.role === "coach") router.replace("/");
+  }, [ready, user, router]);
 
   if (!isSupabaseConfigured) return <SetupNotice />;
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      validateLogin("coach", username, password);
+      await signIn(email, password, "coach");
       router.replace("/");
     } catch (err) {
       setError((err as Error).message);
@@ -47,11 +46,12 @@ export default function CoachLoginPage() {
 
         <form onSubmit={onSubmit} className="cw-login-form">
           <div className="cw-field">
-            <label>Username</label>
+            <label>Email</label>
             <input
               className="cw-input"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               autoFocus
               autoComplete="username"
             />
@@ -71,15 +71,6 @@ export default function CoachLoginPage() {
             {busy ? "Signing in…" : "Log in →"}
           </button>
         </form>
-
-        <div className="cw-demo-accounts">
-          <div className="cw-demo-title">Demo account</div>
-          <ul>
-            <li>
-              <b>{POC.coach.username}</b> / {POC.coach.password} — {POC.coach.displayName}
-            </li>
-          </ul>
-        </div>
       </div>
     </div>
   );

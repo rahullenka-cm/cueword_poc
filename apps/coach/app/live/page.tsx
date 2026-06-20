@@ -5,14 +5,12 @@ import SetupNotice from "@cueword/core/components/SetupNotice";
 import LiveClass from "@cueword/core/components/LiveClass";
 import BodyClass from "@cueword/core/components/BodyClass";
 import TopBar from "@cueword/core/components/TopBar";
-import ZoomDock from "@cueword/core/components/ZoomDock";
 import { useActiveSession } from "@cueword/core/components/useActiveSession";
 import { isSupabaseConfigured } from "@cueword/core/lib/supabase/client";
-import { logout, useCurrentUser } from "@cueword/core/lib/auth";
+import { signOut, useSupabaseUser } from "@cueword/core/lib/auth-supabase";
 import { POC, getZoomLink } from "@cueword/core/lib/config";
 import {
   endClass,
-  setDriver,
   setStep,
   startClass,
   subscribeSessionEvents,
@@ -24,7 +22,7 @@ import type { AnswerPayload } from "@cueword/core/lib/types";
 
 export default function CoachLivePage() {
   const router = useRouter();
-  const { user, ready } = useCurrentUser();
+  const { user, ready } = useSupabaseUser();
   const { session, setSession, loading } = useActiveSession();
   const [lastAnswer, setLastAnswer] = useState<{
     stepIndex: number;
@@ -71,8 +69,7 @@ export default function CoachLivePage() {
     <button
       className="cw-logout"
       onClick={() => {
-        logout();
-        router.replace("/login");
+        void signOut().finally(() => router.replace("/login"));
       }}
     >
       Log out
@@ -92,11 +89,6 @@ export default function CoachLivePage() {
         const phase = stepPhase(steps[clamped]) || null;
         setSession({ ...session, current_step: clamped, current_phase: phase });
         void setStep(session.id, clamped, phase, "coach");
-      };
-      const toggleDriver = () => {
-        const next = session.driver === "coach" ? "student" : "coach";
-        setSession({ ...session, driver: next });
-        void setDriver(session.id, next);
       };
       const curStep = steps[idx];
       // Mirror the child's answer visual onto the coach screen: feed their
@@ -125,14 +117,7 @@ export default function CoachLivePage() {
             void endClass(session.id);
             router.push("/");
           }}
-          headerActions={
-            <>
-              <button className="cw-takeover" onClick={toggleDriver}>
-                {isDriver ? `Give control to ${studentName}` : "Take over"}
-              </button>
-              {logoutBtn}
-            </>
-          }
+          headerActions={logoutBtn}
         />
       );
     }
@@ -155,31 +140,20 @@ export default function CoachLivePage() {
             actions={logoutBtn}
           />
           <div className="class-main cw-coach">
-            <main className="class-canvas">
-              <div className="cw-waiting">
-                <div className="cw-waiting-emoji">🪄</div>
-                <h3>Waiting for {studentName} to open a story</h3>
-                <p>
-                  As soon as {studentName} taps a story on their screen, it appears here — synced
-                  live. Warm up with a quick chat meanwhile.
-                </p>
-              </div>
-            </main>
             <aside className="class-playbook">
               <div className="pb-head">
                 🎯 Coach playbook <span className="pb-only">coach only</span>
               </div>
               <div className="pb-body">
                 <div className="pb-card">
-                  <div className="pb-card-h">Get ready</div>
+                  <div className="pb-card-h">Waiting for {studentName}</div>
                   <p>
-                    The class is live. When {studentName} opens the story, the lesson and your
-                    nudges, answers, and rubric appear right here.
+                    The class is live. As soon as {studentName} opens a story, your nudges, answers,
+                    and rubric appear right here — synced live as they move through it.
                   </p>
                 </div>
               </div>
             </aside>
-            <ZoomDock />
           </div>
         </div>
       </>

@@ -11,7 +11,7 @@ import { CW } from "@/data/coachData";
 import SetupNotice from "@cueword/core/components/SetupNotice";
 import { useActiveSession } from "@cueword/core/components/useActiveSession";
 import { isSupabaseConfigured } from "@cueword/core/lib/supabase/client";
-import { logout, useCurrentUser } from "@cueword/core/lib/auth";
+import { signOut, useSupabaseUser } from "@cueword/core/lib/auth-supabase";
 import type { ClassSession } from "@cueword/core/lib/types";
 
 /* The Shell owns the ONE useActiveSession() subscription and shares it via
@@ -623,7 +623,7 @@ function ShellInner({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { route, ctx } = useRoute();
   const go = useGo();
-  const { user, ready } = useCurrentUser();
+  const { user, ready } = useSupabaseUser();
   const { session } = useActiveSession();
   const [sideCollapsed, setSideCollapsed] = useState(false);
 
@@ -633,8 +633,7 @@ function ShellInner({ children }: { children: ReactNode }) {
   }, [ready, user, router]);
 
   const onLogout = () => {
-    logout();
-    router.replace("/login");
+    void signOut().finally(() => router.replace("/login"));
   };
 
   // Drive the live pulse from the REAL session (not the mockup's hardcoded true).

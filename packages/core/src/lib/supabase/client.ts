@@ -21,7 +21,9 @@ export function getSupabaseBrowser(): SupabaseClient {
   if (!browserClient) {
     browserClient = createClient(url, anon, {
       realtime: { params: { eventsPerSecond: 10 } },
-      auth: { persistSession: false },
+      // Real Supabase Auth (coach app) needs the session persisted + refreshed.
+      // Harmless for the student app, which still uses the POC config auth.
+      auth: { persistSession: true, autoRefreshToken: true },
     });
   }
   return browserClient;
